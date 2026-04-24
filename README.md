@@ -30,6 +30,8 @@ This structure lets you:
    - Reverses text input
 4. **Keep Raw**
    - Recursively removes `.JPG` files when a same-name `.CR3` exists in the same folder
+5. **Dupe Cleaner**
+   - Across ordered folders, keeps highest-precedence duplicate and removes lower-precedence copies
 
 ---
 
@@ -76,3 +78,12 @@ This keeps growth clean as your utility list expands.
 - Provide `directory` as an absolute or relative folder path to scan.
 - The action compares names within each folder and deletes `.JPG` only if a `.CR3` peer exists.
 - Matching is case-insensitive (`IMG_1950.CR3` + `IMG_1950.JPG` => JPG removed).
+
+---
+
+## Dupe Cleaner usage notes
+
+- Provide `folders` as paths in precedence order (first path = highest precedence), separated by new lines, `;`, or `,`.
+- The cleaner recursively scans each folder.
+- Duplicate detection key is **base file name** (name without extension), case-insensitive.
+- For a duplicate key found in multiple folders, only the highest-precedence file is kept.
