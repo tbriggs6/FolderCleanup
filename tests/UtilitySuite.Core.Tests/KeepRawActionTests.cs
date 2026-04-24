@@ -118,6 +118,37 @@ public sealed class KeepRawActionTests : IDisposable
         Assert.Contains("Directory does not exist", result);
     }
 
+    [Fact]
+    public async Task Does_not_follow_symlinked_directories_outside_root()
+    {
+        var root = CreateFolder("root");
+        var inside = Path.Combine(root, "inside");
+        Directory.CreateDirectory(inside);
+
+        var outside = CreateFolder("outside");
+        var outsideCr3 = Path.Combine(outside, "IMG_9000.CR3");
+        var outsideJpg = Path.Combine(outside, "IMG_9000.JPG");
+        await File.WriteAllTextAsync(outsideCr3, "raw");
+        await File.WriteAllTextAsync(outsideJpg, "jpg");
+
+        var linkPath = Path.Combine(inside, "outside-link");
+        if (!TryCreateDirectorySymlink(linkPath, outside))
+        {
+            return;
+        }
+
+        var action = CreateKeepRawAction();
+        var context = new UtilityActionContext(new Dictionary<string, string>
+        {
+            ["directory"] = root
+        });
+
+        await action.ExecuteAsync(context);
+
+        Assert.True(File.Exists(outsideJpg));
+        Assert.True(File.Exists(outsideCr3));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -130,5 +161,25 @@ public sealed class KeepRawActionTests : IDisposable
     {
         var module = new KeepRawUtilityModule();
         return module.Actions.Single(action => action.Id == "keep-raw");
+    }
+
+    private string CreateFolder(string name)
+    {
+        var path = Path.Combine(_tempRoot, name);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static bool TryCreateDirectorySymlink(string linkPath, string targetPath)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(linkPath, targetPath);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

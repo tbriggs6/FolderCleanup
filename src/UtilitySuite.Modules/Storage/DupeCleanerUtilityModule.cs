@@ -1,4 +1,5 @@
 using UtilitySuite.Core.Abstractions;
+using UtilitySuite.Modules.Safety;
 
 namespace UtilitySuite.Modules.Storage;
 
@@ -49,18 +50,33 @@ public sealed class DupeCleanerAction : IUtilityAction
             return Task.FromResult($"Folders do not exist: {string.Join(", ", missing)}");
         }
 
+        var linkRoots = orderedRoots.Where(RootPathSafety.IsDirectoryLink).ToArray();
+        if (linkRoots.Length > 0)
+        {
+            return Task.FromResult(
+                $"Folder roots cannot be links/reparse points for safety: {string.Join(", ", linkRoots)}");
+        }
+
         var filesByBaseName = new Dictionary<string, List<CandidateFile>>(StringComparer.OrdinalIgnoreCase);
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var scannedFiles = 0;
         var scanErrors = 0;
+        var skippedLinks = 0;
 
         for (var index = 0; index < orderedRoots.Count; index++)
         {
             var scanResult = EnumerateFilesSafe(orderedRoots[index], cancellationToken);
             scanErrors += scanResult.Errors;
+            skippedLinks += scanResult.SkippedLinks;
 
             foreach (var filePath in scanResult.Files)
             {
+                if (!RootPathSafety.IsPathWithinRoot(filePath, orderedRoots[index]))
+                {
+                    scanErrors++;
+                    continue;
+                }
+
                 if (!seenPaths.Add(filePath))
                 {
                     continue;
@@ -113,6 +129,12 @@ public sealed class DupeCleanerAction : IUtilityAction
                     continue;
                 }
 
+                if (!RootPathSafety.IsPathWithinRoot(candidate.Path, orderedRoots[candidate.PrecedenceIndex]))
+                {
+                    deleteErrors++;
+                    continue;
+                }
+
                 try
                 {
                     File.Delete(candidate.Path);
@@ -132,7 +154,7 @@ public sealed class DupeCleanerAction : IUtilityAction
         return Task.FromResult(
             $"Scanned {orderedRoots.Count} folders and {scannedFiles} files. " +
             $"Found {duplicateGroups} duplicate base-name groups. Deleted {deletedFiles} duplicates from lower-precedence folders. " +
-            $"Scan errors: {scanErrors}. Delete errors: {deleteErrors}.");
+            $"Skipped {skippedLinks} link/reparse-point directories. Scan errors: {scanErrors}. Delete errors: {deleteErrors}.");
     }
 
     private static FolderParseResult ParseFolders(string? rawInput)
@@ -161,7 +183,7 @@ public sealed class DupeCleanerAction : IUtilityAction
             string normalized;
             try
             {
-                normalized = Path.GetFullPath(path);
+                normalized = RootPathSafety.NormalizeRoot(path);
             }
             catch (Exception)
             {
@@ -182,6 +204,7 @@ public sealed class DupeCleanerAction : IUtilityAction
     {
         var collectedFiles = new List<string>();
         var errors = 0;
+        var skippedLinks = 0;
         var pending = new Stack<string>();
         pending.Push(rootFolder);
 
@@ -190,6 +213,18 @@ public sealed class DupeCleanerAction : IUtilityAction
             cancellationToken.ThrowIfCancellationRequested();
 
             var current = pending.Pop();
+
+            if (!RootPathSafety.IsPathWithinRoot(current, rootFolder))
+            {
+                errors++;
+                continue;
+            }
+
+            if (RootPathSafety.IsDirectoryLink(current) && !string.Equals(current, rootFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                skippedLinks++;
+                continue;
+            }
 
             IEnumerable<string> discoveredFiles;
             try
@@ -230,14 +265,26 @@ public sealed class DupeCleanerAction : IUtilityAction
 
             foreach (var child in childDirectories)
             {
+                if (!RootPathSafety.IsPathWithinRoot(child, rootFolder))
+                {
+                    errors++;
+                    continue;
+                }
+
+                if (RootPathSafety.IsDirectoryLink(child))
+                {
+                    skippedLinks++;
+                    continue;
+                }
+
                 pending.Push(child);
             }
         }
 
-        return new FolderScanResult(collectedFiles, errors);
+        return new FolderScanResult(collectedFiles, errors, skippedLinks);
     }
 
     private sealed record FolderParseResult(IReadOnlyList<string> Folders, IReadOnlyList<string> InvalidEntries);
-    private sealed record FolderScanResult(IReadOnlyList<string> Files, int Errors);
+    private sealed record FolderScanResult(IReadOnlyList<string> Files, int Errors, int SkippedLinks);
     private sealed record CandidateFile(string Path, int PrecedenceIndex);
 }

@@ -109,6 +109,32 @@ public sealed class ClearEmptiesActionTests : IDisposable
         Assert.True(Directory.Exists(root));
     }
 
+    [Fact]
+    public async Task Skips_directory_symlink_to_outside_root()
+    {
+        var root = CreateFolder("root");
+        var outside = CreateFolder("outside");
+        var outsideLeaf = Path.Combine(outside, "leaf");
+        Directory.CreateDirectory(outsideLeaf);
+
+        var linkPath = Path.Combine(root, "outside-link");
+        if (!TryCreateDirectorySymlink(linkPath, outside))
+        {
+            return;
+        }
+
+        var action = CreateClearEmptiesAction();
+        var context = new UtilityActionContext(new Dictionary<string, string>
+        {
+            ["directory"] = root
+        });
+
+        await action.ExecuteAsync(context);
+
+        Assert.True(Directory.Exists(linkPath));
+        Assert.True(Directory.Exists(outsideLeaf));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -128,5 +154,22 @@ public sealed class ClearEmptiesActionTests : IDisposable
     {
         var module = new ClearEmptiesUtilityModule();
         return module.Actions.Single(action => action.Id == "clear-empties");
+    }
+
+    private static bool TryCreateDirectorySymlink(string linkPath, string targetPath)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(linkPath, targetPath);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return false;
+        }
     }
 }

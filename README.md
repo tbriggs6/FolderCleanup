@@ -80,6 +80,7 @@ This keeps growth clean as your utility list expands.
 - Provide `directory` as an absolute or relative folder path to scan.
 - The action compares names within each folder and deletes `.JPG` only if a `.CR3` peer exists.
 - Matching is case-insensitive (`IMG_1950.CR3` + `IMG_1950.JPG` => JPG removed).
+- Safety boundary: traversal is restricted to the provided root and does not follow directory links/junctions.
 
 ---
 
@@ -89,6 +90,7 @@ This keeps growth clean as your utility list expands.
 - The cleaner recursively scans each folder.
 - Duplicate detection key is **base file name** (name without extension), case-insensitive.
 - For a duplicate key found in multiple folders, only the highest-precedence file is kept.
+- Safety boundary: each folder is treated as an isolated root; no operations are allowed outside declared roots and directory links/junctions are not traversed.
 
 ---
 
@@ -97,3 +99,4 @@ This keeps growth clean as your utility list expands.
 - Provide `directory` as the root folder to clean.
 - The cleaner traverses subdirectories recursively and evaluates emptiness bottom-up.
 - If deleting an empty child makes its parent empty, the parent is removed in the same run.
+- Safety boundary: cleanup is limited to subdirectories under the provided root; root path itself is preserved and directory links/junctions are skipped.

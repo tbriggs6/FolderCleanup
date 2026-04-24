@@ -1,4 +1,5 @@
 using UtilitySuite.Core.Abstractions;
+using UtilitySuite.Modules.Safety;
 
 namespace UtilitySuite.Modules.Photo;
 
@@ -30,9 +31,25 @@ public sealed class KeepRawAction : IUtilityAction
             return Task.FromResult("Input 'directory' is required.");
         }
 
-        if (!Directory.Exists(rootDirectory))
+        if (!RootPathSafety.TryNormalizeRoot(rootDirectory, out var root, out var validationError))
         {
-            return Task.FromResult($"Directory does not exist: {rootDirectory}");
+            return Task.FromResult(validationError ?? "Invalid directory path.");
+        }
+
+        if (root is null)
+        {
+            return Task.FromResult("Invalid directory path.");
+        }
+
+        if (!Directory.Exists(root))
+        {
+            return Task.FromResult($"Directory does not exist: {root}");
+        }
+
+        if (RootPathSafety.IsDirectoryLink(root))
+        {
+            return Task.FromResult(
+                $"Directory is a link/reparse point and cannot be used as a root for safety: {root}");
         }
 
         var deleted = 0;
@@ -40,13 +57,28 @@ public sealed class KeepRawAction : IUtilityAction
         var scannedDirectories = 0;
         var errors = 0;
         var pending = new Stack<string>();
-        pending.Push(rootDirectory);
+        pending.Push(root);
 
         while (pending.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var directory = pending.Pop();
+            if (!RootPathSafety.IsPathWithinRoot(directory, root))
+            {
+                errors++;
+                continue;
+            }
+
+            if (RootPathSafety.IsDirectoryLink(directory)
+                && !string.Equals(
+                    directory,
+                    root,
+                    OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             scannedDirectories++;
 
             var rawFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -56,6 +88,11 @@ public sealed class KeepRawAction : IUtilityAction
             {
                 foreach (var filePath in Directory.EnumerateFiles(directory))
                 {
+                    if (!RootPathSafety.IsPathWithinRoot(filePath, root))
+                    {
+                        continue;
+                    }
+
                     var extension = Path.GetExtension(filePath);
                     if (extension.Equals(".cr3", StringComparison.OrdinalIgnoreCase))
                     {
@@ -106,6 +143,16 @@ public sealed class KeepRawAction : IUtilityAction
             {
                 foreach (var childDirectory in Directory.EnumerateDirectories(directory))
                 {
+                    if (!RootPathSafety.IsPathWithinRoot(childDirectory, root))
+                    {
+                        continue;
+                    }
+
+                    if (RootPathSafety.IsDirectoryLink(childDirectory))
+                    {
+                        continue;
+                    }
+
                     pending.Push(childDirectory);
                 }
             }

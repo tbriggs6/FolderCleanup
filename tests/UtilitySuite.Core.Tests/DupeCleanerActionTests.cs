@@ -134,6 +134,37 @@ public sealed class DupeCleanerActionTests : IDisposable
         Assert.False(File.Exists(deletePath));
     }
 
+    [Fact]
+    public async Task Does_not_traverse_directory_symlinks_outside_root()
+    {
+        var tier1 = CreateFolder("tier1");
+        var tier2 = CreateFolder("tier2");
+
+        var external = CreateFolder("external");
+        var outsideFilePath = Path.Combine(external, "archive.zip");
+        await File.WriteAllTextAsync(outsideFilePath, "outside");
+
+        var insideFilePath = Path.Combine(tier1, "archive.zip");
+        await File.WriteAllTextAsync(insideFilePath, "inside");
+
+        var linkPath = Path.Combine(tier2, "external-link");
+        if (!TryCreateDirectorySymlink(linkPath, external))
+        {
+            return;
+        }
+
+        var action = CreateDupeCleanerAction();
+        var context = new UtilityActionContext(new Dictionary<string, string>
+        {
+            ["folders"] = $"{tier1};{tier2}"
+        });
+
+        await action.ExecuteAsync(context);
+
+        Assert.True(File.Exists(outsideFilePath));
+        Assert.True(Directory.Exists(linkPath));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -153,5 +184,22 @@ public sealed class DupeCleanerActionTests : IDisposable
     {
         var module = new DupeCleanerUtilityModule();
         return module.Actions.Single(action => action.Id == "dupe-cleaner");
+    }
+
+    private static bool TryCreateDirectorySymlink(string linkPath, string targetPath)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(linkPath, targetPath);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return false;
+        }
     }
 }

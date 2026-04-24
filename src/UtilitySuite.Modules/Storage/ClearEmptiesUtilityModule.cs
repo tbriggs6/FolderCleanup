@@ -1,4 +1,5 @@
 using UtilitySuite.Core.Abstractions;
+using UtilitySuite.Modules.Safety;
 
 namespace UtilitySuite.Modules.Storage;
 
@@ -35,31 +36,55 @@ public sealed class ClearEmptiesAction : IUtilityAction
             return Task.FromResult($"Directory does not exist: {rootDirectory}");
         }
 
-        var fullRoot = Path.GetFullPath(rootDirectory);
+        var rootValidation = RootPathSafety.ValidateRootDirectory(rootDirectory);
+        if (!rootValidation.IsValid)
+        {
+            return Task.FromResult(rootValidation.ErrorMessage!);
+        }
+
+        var fullRoot = rootValidation.FullRootPath!;
+
+        if (RootPathSafety.IsDirectoryLink(fullRoot))
+        {
+            return Task.FromResult(
+                $"Directory is a link/reparse point and cannot be used as a root for safety: {fullRoot}");
+        }
+
         var scannedDirectories = 1;
         var deletedDirectories = 0;
         var errors = 0;
+        var skippedLinks = 0;
 
         CleanDirectory(
+            fullRoot,
             fullRoot,
             ref scannedDirectories,
             ref deletedDirectories,
             ref errors,
+            ref skippedLinks,
             cancellationToken);
 
         return Task.FromResult(
             $"Scanned {scannedDirectories} directories. Deleted {deletedDirectories} empty directories. " +
-            $"Errors: {errors}. Root preserved: {fullRoot}");
+            $"Skipped {skippedLinks} link/reparse-point directories. Errors: {errors}. Root preserved: {fullRoot}");
     }
 
     private static bool CleanDirectory(
         string directory,
+        string rootDirectory,
         ref int scannedDirectories,
         ref int deletedDirectories,
         ref int errors,
+        ref int skippedLinks,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!RootPathSafety.IsPathWithinRoot(directory, rootDirectory))
+        {
+            errors++;
+            return false;
+        }
 
         string[] childDirectories;
         try
@@ -79,13 +104,27 @@ public sealed class ClearEmptiesAction : IUtilityAction
 
         foreach (var childDirectory in childDirectories)
         {
+            if (!RootPathSafety.IsPathWithinRoot(childDirectory, rootDirectory))
+            {
+                errors++;
+                continue;
+            }
+
+            if (RootPathSafety.IsDirectoryLink(childDirectory))
+            {
+                skippedLinks++;
+                continue;
+            }
+
             scannedDirectories++;
 
             var childIsEmpty = CleanDirectory(
                 childDirectory,
+                rootDirectory,
                 ref scannedDirectories,
                 ref deletedDirectories,
                 ref errors,
+                ref skippedLinks,
                 cancellationToken);
 
             if (!childIsEmpty)
