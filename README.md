@@ -32,6 +32,8 @@ This structure lets you:
    - Recursively removes `.JPG` files when a same-name `.CR3` exists in the same folder
 5. **Dupe Cleaner**
    - Across ordered folders, keeps highest-precedence duplicate and removes lower-precedence copies
+6. **Clear Empties**
+   - Recursively removes empty directories bottom-up so newly empty parents are also cleaned
 
 ---
 
@@ -87,3 +89,11 @@ This keeps growth clean as your utility list expands.
 - The cleaner recursively scans each folder.
 - Duplicate detection key is **base file name** (name without extension), case-insensitive.
 - For a duplicate key found in multiple folders, only the highest-precedence file is kept.
+
+---
+
+## Clear Empties usage notes
+
+- Provide `directory` as the root folder to clean.
+- The cleaner traverses subdirectories recursively and evaluates emptiness bottom-up.
+- If deleting an empty child makes its parent empty, the parent is removed in the same run.

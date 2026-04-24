@@ -12,6 +12,7 @@ public static class ModuleCatalog
     {
         return
         [
+            new ClearEmptiesUtilityModule(),
             new DupeCleanerUtilityModule(),
             new KeepRawUtilityModule(),
             new DateTimeUtilityModule(),
