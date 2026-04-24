@@ -65,6 +65,24 @@ dotnet run --project src/UtilitySuite.App/UtilitySuite.App.csproj
 
 ---
 
+## GitHub build, test, and publish automation
+
+This repository includes a GitHub Actions workflow at:
+
+- `.github/workflows/build-test-publish.yml`
+
+On every push to `main` and `cursor/**` branches (and on pull requests), GitHub will:
+
+1. restore dependencies
+2. build the solution
+3. run unit tests
+4. publish a Windows executable (`win-x64`) for `UtilitySuite.App`
+5. upload the published output as an artifact named `UtilitySuite-win-x64`
+
+You can download the executable package from the workflow run’s **Artifacts** section.
+
+---
+
 ## Adding a new utility module
 
 1. Create a class in `src/UtilitySuite.Modules/` implementing `IUtilityModule`
