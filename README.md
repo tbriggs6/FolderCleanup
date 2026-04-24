@@ -1,0 +1,120 @@
+# UtilitySuite (Windows C# Multi-Utility Starter)
+
+This repository is a starter template for a **single C# app that hosts many small utilities**.
+
+The project is intentionally split into:
+
+- `UtilitySuite.Core` - shared interfaces and models
+- `UtilitySuite.Modules` - individual utility implementations
+- `UtilitySuite.App` - host application (currently a console shell)
+
+## Why this shape?
+
+You mentioned wanting a Windows utility app with multiple sub-tools and flexibility in UI.
+
+This structure lets you:
+
+- Keep utility logic independent of UI
+- Start quickly with a console host
+- Later swap/add a Windows GUI (WPF, WinUI 3, Avalonia) while reusing modules
+
+---
+
+## Current starter utilities
+
+1. **Current Timestamp**
+   - Returns local and UTC timestamps
+2. **Word Count**
+   - Counts words from text input
+3. **Reverse Text**
+   - Reverses text input
+4. **Keep Raw**
+   - Recursively removes `.JPG` files when a same-name `.CR3` exists in the same folder
+5. **Dupe Cleaner**
+   - Across ordered folders, keeps highest-precedence duplicate and removes lower-precedence copies
+6. **Clear Empties**
+   - Recursively removes empty directories bottom-up so newly empty parents are also cleaned
+
+---
+
+## Suggested next UI options (Windows)
+
+- **WPF**: mature, stable, great for desktop tooling
+- **WinUI 3**: modern Windows look/feel, native direction from Microsoft
+- **Avalonia**: if you may later want cross-platform support
+
+Recommended default for a pure Windows utility suite: **WPF**.
+
+---
+
+## Prerequisites
+
+Install the .NET SDK (recommended: .NET 8):
+
+```powershell
+winget install Microsoft.DotNet.SDK.8
+```
+
+Then run:
+
+```bash
+dotnet restore
+dotnet build
+dotnet run --project src/UtilitySuite.App/UtilitySuite.App.csproj
+```
+
+---
+
+## GitHub build, test, and publish automation
+
+This repository includes a GitHub Actions workflow at:
+
+- `.github/workflows/build-test-publish.yml`
+
+On every push to `main` and `cursor/**` branches (and on pull requests), GitHub will:
+
+1. restore dependencies
+2. build the solution
+3. run unit tests
+4. publish a Windows executable (`win-x64`) for `UtilitySuite.App`
+5. upload the published output as an artifact named `UtilitySuite-win-x64`
+
+You can download the executable package from the workflow run’s **Artifacts** section.
+
+---
+
+## Adding a new utility module
+
+1. Create a class in `src/UtilitySuite.Modules/` implementing `IUtilityModule`
+2. Register it in `ModuleCatalog`
+3. The host app will automatically surface it in the menu
+
+This keeps growth clean as your utility list expands.
+
+---
+
+## Keep Raw usage notes
+
+- Provide `directory` as an absolute or relative folder path to scan.
+- The action compares names within each folder and deletes `.JPG` only if a `.CR3` peer exists.
+- Matching is case-insensitive (`IMG_1950.CR3` + `IMG_1950.JPG` => JPG removed).
+- Safety boundary: traversal is restricted to the provided root and does not follow directory links/junctions.
+
+---
+
+## Dupe Cleaner usage notes
+
+- Provide `folders` as paths in precedence order (first path = highest precedence), separated by new lines, `;`, or `,`.
+- The cleaner recursively scans each folder.
+- Duplicate detection key is **base file name** (name without extension), case-insensitive.
+- For a duplicate key found in multiple folders, only the highest-precedence file is kept.
+- Safety boundary: each folder is treated as an isolated root; no operations are allowed outside declared roots and directory links/junctions are not traversed.
+
+---
+
+## Clear Empties usage notes
+
+- Provide `directory` as the root folder to clean.
+- The cleaner traverses subdirectories recursively and evaluates emptiness bottom-up.
+- If deleting an empty child makes its parent empty, the parent is removed in the same run.
+- Safety boundary: cleanup is limited to subdirectories under the provided root; root path itself is preserved and directory links/junctions are skipped.
