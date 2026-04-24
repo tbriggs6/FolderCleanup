@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\UtilitySuite.Core\UtilitySuite.Core.csproj" />
+    <ProjectReference Include="..\..\src\UtilitySuite.Modules\UtilitySuite.Modules.csproj" />
   </ItemGroup>
 </Project>

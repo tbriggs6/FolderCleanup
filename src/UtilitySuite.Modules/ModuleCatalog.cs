@@ -1,4 +1,5 @@
 using UtilitySuite.Core.Abstractions;
+using UtilitySuite.Modules.Photo;
 using UtilitySuite.Modules.SystemInfo;
 using UtilitySuite.Modules.Text;
 
@@ -10,6 +11,7 @@ public static class ModuleCatalog
     {
         return
         [
+            new KeepRawUtilityModule(),
             new DateTimeUtilityModule(),
             new TextUtilityModule()
         ];

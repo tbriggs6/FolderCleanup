@@ -28,6 +28,8 @@ This structure lets you:
    - Counts words from text input
 3. **Reverse Text**
    - Reverses text input
+4. **Keep Raw**
+   - Recursively removes `.JPG` files when a same-name `.CR3` exists in the same folder
 
 ---
 
@@ -66,3 +68,11 @@ dotnet run --project src/UtilitySuite.App/UtilitySuite.App.csproj
 3. The host app will automatically surface it in the menu
 
 This keeps growth clean as your utility list expands.
+
+---
+
+## Keep Raw usage notes
+
+- Provide `directory` as an absolute or relative folder path to scan.
+- The action compares names within each folder and deletes `.JPG` only if a `.CR3` peer exists.
+- Matching is case-insensitive (`IMG_1950.CR3` + `IMG_1950.JPG` => JPG removed).
